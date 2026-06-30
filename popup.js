@@ -1,18 +1,21 @@
-import { loadJournal } from './storage.js';
+import { browser } from './browser.js';
+import { loadJournal, clearJournal } from './storage.js';
+import { loadConfig, saveConfig } from './config.js';
 
 const info = document.getElementById('info');
 const search = document.getElementById('search');
 const results = document.getElementById('results');
+const pause = document.getElementById('pause');
 
 // Flatten every snapshot into a de-duplicated list of tabs, keyed by URL and
-// keeping the most recent title/timestamp for each. This is what makes the
-// journal useful: a searchable index of every link you've ever had open.
+// keeping the most recent title/timestamp for each — a searchable index of
+// every link you've had open.
 function buildIndex(journal) {
   const byUrl = new Map();
   for (const entry of journal) {
     for (const windowId of Object.keys(entry.windows)) {
       for (const tab of entry.windows[windowId]) {
-        if (!tab.url || tab.url.startsWith('chrome://')) continue;
+        if (!tab.url) continue;
         const existing = byUrl.get(tab.url);
         if (!existing || entry.ts > existing.ts) {
           byUrl.set(tab.url, { url: tab.url, title: tab.title || tab.url, ts: entry.ts });
@@ -55,14 +58,17 @@ function render(index, query) {
     meta.textContent = `last seen ${new Date(tab.ts).toLocaleString()}`;
 
     li.append(title, url, meta);
-    li.addEventListener('click', () => chrome.tabs.create({ url: tab.url }));
+    li.addEventListener('click', () => browser.tabs.create({ url: tab.url }));
     results.appendChild(li);
   }
 }
 
 async function init() {
-  const journal = await loadJournal();
+  const [journal, config] = await Promise.all([loadJournal(), loadConfig()]);
   const index = buildIndex(journal);
+
+  pause.checked = config.captureEnabled;
+  pause.addEventListener('change', () => saveConfig({ captureEnabled: pause.checked }));
 
   if (journal.length) {
     const last = journal[journal.length - 1];
@@ -76,9 +82,8 @@ async function init() {
   search.addEventListener('input', () => render(index, search.value));
 }
 
-// Export the raw journal as JSON. Runs in the popup (a normal DOM page) so
-// URL.createObjectURL is available — unlike the MV3 service worker, where it is
-// not, which is what broke the previous export implementation.
+// Export runs in the popup (a normal DOM page) so URL.createObjectURL is
+// available — unlike the MV3 service worker, where it is not.
 document.getElementById('export').addEventListener('click', async () => {
   const journal = await loadJournal();
   const blob = new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' });
@@ -88,6 +93,16 @@ document.getElementById('export').addEventListener('click', async () => {
   a.download = `tabjournal-${Date.now()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+document.getElementById('settings').addEventListener('click', () => {
+  browser.runtime.openOptionsPage();
+});
+
+document.getElementById('clear').addEventListener('click', async () => {
+  if (!confirm('Delete the entire tab journal from this device? This cannot be undone.')) return;
+  await clearJournal();
+  window.close();
 });
 
 init();

@@ -1,8 +1,15 @@
+import { browser } from './browser.js';
+
 export const STORAGE_KEY = 'tab_journal';
 
 export async function loadJournal() {
-  const result = await chrome.storage.local.get(STORAGE_KEY);
+  const result = await browser.storage.local.get(STORAGE_KEY);
   return result[STORAGE_KEY] || [];
+}
+
+/** Delete the entire journal (user-initiated "clear all data"). */
+export async function clearJournal() {
+  await browser.storage.local.remove(STORAGE_KEY);
 }
 
 // All journal mutations funnel through this promise chain so concurrent tab
@@ -21,13 +28,13 @@ export function appendEntry(entry, maxEntries) {
     journal.push(entry);
     while (journal.length > maxEntries) journal.shift();
     try {
-      await chrome.storage.local.set({ [STORAGE_KEY]: journal });
+      await browser.storage.local.set({ [STORAGE_KEY]: journal });
     } catch (err) {
       // Most likely a quota error. Drop the oldest 10% and retry once so we
       // degrade gracefully instead of losing the new entry entirely.
       console.error('TabJournal save error, trimming and retrying:', err);
       journal.splice(0, Math.ceil(journal.length * 0.1) || 1);
-      await chrome.storage.local.set({ [STORAGE_KEY]: journal });
+      await browser.storage.local.set({ [STORAGE_KEY]: journal });
     }
   }).catch(err => {
     console.error('TabJournal write error:', err);
@@ -36,8 +43,8 @@ export function appendEntry(entry, maxEntries) {
 }
 
 /**
- * Stable signature of a snapshot's tab state (ignores volatile fields like
- * `active`/`id`), used to skip writing snapshots identical to the previous one.
+ * Stable signature of a snapshot's tab state (ignores volatile fields), used to
+ * skip writing snapshots identical to the previous one.
  */
 export function snapshotSignature(windows) {
   const parts = [];

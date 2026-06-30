@@ -6,23 +6,44 @@
   body { font-family: system-ui, sans-serif; margin: 0; padding: 10px; width: 340px; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   h1 { font-size: 14px; margin: 0; }
+  .privacy { font-size: 11px; background: #e7f7f3; color: #0c6; border-radius: 6px; padding: 6px 8px; margin: 8px 0; line-height: 1.4; }
+  .privacy strong { color: #095; }
+  .bar { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .bar label { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .spacer { flex: 1; }
   #info { font-size: 11px; color: #666; margin: 6px 0; white-space: pre-wrap; }
   #search { width: 100%; box-sizing: border-box; padding: 6px 8px; margin: 6px 0; }
-  #results { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+  #results { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
   #results li { padding: 6px 4px; border-bottom: 1px solid #eee; cursor: pointer; }
   #results li:hover { background: #f3f6ff; }
   .title { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .url { font-size: 11px; color: #2a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { font-size: 10px; color: #999; }
   .empty { font-size: 12px; color: #999; padding: 10px 4px; }
-  button { padding: 6px 10px; font-size: 12px; cursor: pointer; }
+  button { padding: 5px 9px; font-size: 12px; cursor: pointer; }
+  .link { background: none; border: none; color: #06c; cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; }
+  .danger { color: #b00; }
 </style>
 </head>
 <body>
   <header>
     <h1>TabJournal</h1>
-    <button id="export">Export</button>
+    <label class="bar" style="margin:0"><input id="pause" type="checkbox"> Active</label>
   </header>
+
+  <div class="privacy">
+    <strong>100% local.</strong> Your tab history is stored only on this device and
+    is <strong>never sent anywhere</strong> — no servers, no accounts, no tracking.
+    URLs are saved without their query strings by default.
+  </div>
+
+  <div class="bar">
+    <button id="export">Export JSON</button>
+    <button id="settings" class="link">Settings</button>
+    <span class="spacer"></span>
+    <button id="clear" class="link danger">Clear all data</button>
+  </div>
+
   <div id="info"></div>
   <input id="search" type="search" placeholder="Search past tabs by title or URL…" autofocus>
   <ul id="results"></ul>

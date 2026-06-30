@@ -1,5 +1,7 @@
+import { browser } from './browser.js';
 import { appendEntry, snapshotSignature } from './storage.js';
 import { loadConfig, CONFIG_KEY } from './config.js';
+import { sanitizeUrl, shouldCapture } from './privacy.js';
 
 const ALARM_NAME = 'snapshot';
 
@@ -13,14 +15,22 @@ let lastSignature = null;
 async function snapshotTabs(reason = 'periodic') {
   try {
     const config = await loadConfig();
-    const tabs = await chrome.tabs.query({});
+
+    // Master switch: when paused, TabJournal records nothing at all.
+    if (!config.captureEnabled) return;
+
+    const tabs = await browser.tabs.query({});
     const windows = {};
 
     for (const tab of tabs) {
+      // Only journal real http/https pages, never excluded domains, never
+      // browser-internal/extension/file pages.
+      if (!shouldCapture(tab.url, config.excludedDomains)) continue;
+
       if (!windows[tab.windowId]) windows[tab.windowId] = [];
       windows[tab.windowId].push({
         index: tab.index,
-        url: tab.url || null,
+        url: sanitizeUrl(tab.url, config.storeFullUrl),
         title: tab.title || null,
         pinned: tab.pinned
       });
@@ -44,25 +54,25 @@ async function snapshotTabs(reason = 'periodic') {
 
 async function ensureAlarm() {
   const { snapshotMinutes } = await loadConfig();
-  await chrome.alarms.create(ALARM_NAME, { periodInMinutes: snapshotMinutes });
+  await browser.alarms.create(ALARM_NAME, { periodInMinutes: snapshotMinutes });
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+browser.runtime.onInstalled.addListener(() => {
   ensureAlarm();
   snapshotTabs('install');
 });
 
-chrome.runtime.onStartup.addListener(() => {
+browser.runtime.onStartup.addListener(() => {
   ensureAlarm();
   snapshotTabs('startup');
 });
 
-chrome.alarms.onAlarm.addListener(alarm => {
+browser.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === ALARM_NAME) snapshotTabs('alarm');
 });
 
 // Re-create the alarm whenever the interval changes in the options page.
-chrome.storage.onChanged.addListener((changes, area) => {
+browser.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes[CONFIG_KEY]) ensureAlarm();
 });
 
@@ -72,8 +82,8 @@ let eventTimer = null;
 let pendingReason = null;
 
 async function scheduleEventSnapshot(reason) {
-  const { captureEvents, eventDebounceMs } = await loadConfig();
-  if (!captureEvents) return;
+  const { captureEnabled, captureEvents, eventDebounceMs } = await loadConfig();
+  if (!captureEnabled || !captureEvents) return;
 
   pendingReason = reason;
   if (eventTimer) clearTimeout(eventTimer);
@@ -85,8 +95,8 @@ async function scheduleEventSnapshot(reason) {
   }, eventDebounceMs);
 }
 
-chrome.tabs.onCreated.addListener(() => scheduleEventSnapshot('tab-created'));
-chrome.tabs.onRemoved.addListener(() => scheduleEventSnapshot('tab-removed'));
-chrome.tabs.onUpdated.addListener((_, changeInfo) => {
+browser.tabs.onCreated.addListener(() => scheduleEventSnapshot('tab-created'));
+browser.tabs.onRemoved.addListener(() => scheduleEventSnapshot('tab-removed'));
+browser.tabs.onUpdated.addListener((_, changeInfo) => {
   if (changeInfo.url || changeInfo.title) scheduleEventSnapshot('tab-updated');
 });

@@ -1,23 +1,29 @@
 import { DEFAULT_CONFIG, loadConfig, saveConfig } from './config.js';
+import { clearJournal } from './storage.js';
 
-const fields = ['snapshotMinutes', 'maxEntries', 'captureEvents', 'eventDebounceMs'];
 const status = document.getElementById('status');
 
 function readForm() {
   return {
-    snapshotMinutes: Number(document.getElementById('snapshotMinutes').value),
-    maxEntries: Number(document.getElementById('maxEntries').value),
+    captureEnabled: document.getElementById('captureEnabled').checked,
     captureEvents: document.getElementById('captureEvents').checked,
-    eventDebounceMs: Number(document.getElementById('eventDebounceMs').value)
+    snapshotMinutes: Number(document.getElementById('snapshotMinutes').value),
+    eventDebounceMs: Number(document.getElementById('eventDebounceMs').value),
+    maxEntries: Number(document.getElementById('maxEntries').value),
+    storeFullUrl: document.getElementById('storeFullUrl').checked,
+    excludedDomains: document.getElementById('excludedDomains').value
+      .split('\n').map(s => s.trim()).filter(Boolean)
   };
 }
 
 function writeForm(config) {
-  for (const key of fields) {
-    const el = document.getElementById(key);
-    if (el.type === 'checkbox') el.checked = config[key];
-    else el.value = config[key];
-  }
+  document.getElementById('captureEnabled').checked = config.captureEnabled;
+  document.getElementById('captureEvents').checked = config.captureEvents;
+  document.getElementById('snapshotMinutes').value = config.snapshotMinutes;
+  document.getElementById('eventDebounceMs').value = config.eventDebounceMs;
+  document.getElementById('maxEntries').value = config.maxEntries;
+  document.getElementById('storeFullUrl').checked = config.storeFullUrl;
+  document.getElementById('excludedDomains').value = config.excludedDomains.join('\n');
 }
 
 function flash(message) {
@@ -36,6 +42,12 @@ async function init() {
   document.getElementById('reset').addEventListener('click', async () => {
     writeForm(await saveConfig({ ...DEFAULT_CONFIG }));
     flash('Reset to defaults.');
+  });
+
+  document.getElementById('clear').addEventListener('click', async () => {
+    if (!confirm('Permanently delete all journal data from this device?')) return;
+    await clearJournal();
+    flash('All journal data deleted.');
   });
 }
 

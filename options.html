@@ -4,35 +4,46 @@
 <meta charset="utf-8">
 <title>TabJournal Options</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 24px auto; padding: 0 16px; }
+  body { font-family: system-ui, sans-serif; max-width: 560px; margin: 24px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 18px; }
-  .field { margin: 16px 0; }
+  h2 { font-size: 14px; margin-top: 28px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .field { margin: 14px 0; }
   label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
   .hint { font-size: 12px; color: #666; margin-top: 2px; }
   input[type="number"] { width: 120px; padding: 4px 6px; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 70px; padding: 6px; font-family: monospace; }
   .row { display: flex; align-items: center; gap: 8px; }
+  .note { background: #f3f8ff; border: 1px solid #d6e6ff; border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 1.5; }
   button { padding: 8px 14px; font-size: 13px; cursor: pointer; margin-top: 8px; }
+  .danger { color: #b00; border-color: #b00; }
   #status { font-size: 12px; color: #2a6; margin-left: 8px; }
 </style>
 </head>
 <body>
   <h1>TabJournal Settings</h1>
 
-  <div class="field">
-    <label for="snapshotMinutes">Snapshot interval (minutes)</label>
-    <input id="snapshotMinutes" type="number" min="1" step="1">
-    <div class="hint">How often the periodic snapshot runs.</div>
+  <div class="note">
+    <strong>What TabJournal stores:</strong> a timestamped list of your open tabs' titles
+    and addresses, saved <strong>only on this device</strong> using the browser's local
+    storage. Nothing is ever uploaded — there are no servers, accounts, analytics, or
+    network requests of any kind. You can export or permanently delete everything below.
   </div>
 
+  <h2>Capture</h2>
+
   <div class="field">
-    <label for="maxEntries">Max journal entries</label>
-    <input id="maxEntries" type="number" min="50" step="50">
-    <div class="hint">Oldest snapshots are trimmed once this cap is reached.</div>
+    <label class="row"><input id="captureEnabled" type="checkbox"> Journaling active</label>
+    <div class="hint">Master switch. When off, nothing is recorded at all.</div>
   </div>
 
   <div class="field">
     <label class="row"><input id="captureEvents" type="checkbox"> Capture tab events</label>
-    <div class="hint">Snapshot on tab create/remove/update (debounced).</div>
+    <div class="hint">Also snapshot on tab create/remove/update (debounced), not just on the timer.</div>
+  </div>
+
+  <div class="field">
+    <label for="snapshotMinutes">Snapshot interval (minutes)</label>
+    <input id="snapshotMinutes" type="number" min="1" step="1">
   </div>
 
   <div class="field">
@@ -41,8 +52,38 @@
     <div class="hint">Bursts of tab events within this window collapse into one snapshot.</div>
   </div>
 
+  <h2>Privacy</h2>
+
+  <div class="field">
+    <label class="row"><input id="storeFullUrl" type="checkbox"> Store full URLs</label>
+    <div class="hint">
+      Off (recommended): store only the site + path and drop query strings and
+      fragments, which often contain tokens or personal data. On: keep the complete URL.
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="excludedDomains">Never journal these domains</label>
+    <textarea id="excludedDomains" placeholder="one domain per line, e.g.&#10;mail.google.com&#10;bank.example.com"></textarea>
+    <div class="hint">Subdomains are included automatically (excluding example.com also excludes mail.example.com).</div>
+  </div>
+
+  <h2>Data</h2>
+
+  <div class="field">
+    <label for="maxEntries">Max journal entries</label>
+    <input id="maxEntries" type="number" min="50" step="50">
+    <div class="hint">Oldest snapshots are trimmed once this cap is reached.</div>
+  </div>
+
+  <div class="field">
+    <button id="clear" class="danger">Delete all journal data</button>
+    <div class="hint">Permanently removes every stored snapshot from this device.</div>
+  </div>
+
+  <h2></h2>
   <div class="row">
-    <button id="save">Save</button>
+    <button id="save">Save settings</button>
     <button id="reset">Reset to defaults</button>
     <span id="status"></span>
   </div>

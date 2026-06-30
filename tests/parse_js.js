@@ -3,7 +3,15 @@ const path = require('path');
 const { parse } = require('acorn');
 
 const ROOT = path.resolve(__dirname, '..');
-const files = ['background.js', 'popup.js', 'storage.js', 'config.js', 'options.js'];
+const files = [
+  'browser.js',
+  'privacy.js',
+  'config.js',
+  'storage.js',
+  'background.js',
+  'popup.js',
+  'options.js'
+];
 
 let ok = true;
 
