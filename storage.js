@@ -1,9 +1,5 @@
 export const STORAGE_KEY = 'tab_journal';
 
-// Default cap; the effective value is read from config at runtime so it can be
-// overridden from the options page (12-factor: config in the environment).
-export const MAX_ENTRIES = 1500;
-
 export async function loadJournal() {
   const result = await chrome.storage.local.get(STORAGE_KEY);
   return result[STORAGE_KEY] || [];
@@ -19,7 +15,7 @@ let writeChain = Promise.resolve();
  * it) has completed. Errors are caught so a single failed write can't break the
  * chain for subsequent appends.
  */
-export function appendEntry(entry, maxEntries = MAX_ENTRIES) {
+export function appendEntry(entry, maxEntries) {
   writeChain = writeChain.then(async () => {
     const journal = await loadJournal();
     journal.push(entry);

@@ -13,12 +13,12 @@ export const DEFAULT_CONFIG = {
 
 export async function loadConfig() {
   const result = await chrome.storage.local.get(CONFIG_KEY);
-  return Object.assign({}, DEFAULT_CONFIG, result[CONFIG_KEY] || {});
+  return { ...DEFAULT_CONFIG, ...(result[CONFIG_KEY] || {}) };
 }
 
 export async function saveConfig(partial) {
   const current = await loadConfig();
-  const next = Object.assign({}, current, partial);
+  const next = { ...current, ...partial };
   await chrome.storage.local.set({ [CONFIG_KEY]: next });
   return next;
 }

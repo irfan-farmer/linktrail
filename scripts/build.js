@@ -21,18 +21,24 @@ const ASSETS = [
   'options.js'
 ];
 
-fs.rmSync(DIST, { recursive: true, force: true });
-fs.mkdirSync(DIST, { recursive: true });
+const ICON_SIZES = [16, 32, 48, 128];
 
-for (const asset of ASSETS) {
-  const src = path.join(ROOT, asset);
+fs.rmSync(DIST, { recursive: true, force: true });
+fs.mkdirSync(path.join(DIST, 'icons'), { recursive: true });
+
+const copy = rel => {
+  const src = path.join(ROOT, rel);
   if (!fs.existsSync(src)) {
-    console.error(`Missing asset: ${asset}`);
+    console.error(`Missing asset: ${rel}`);
     process.exit(1);
   }
-  fs.copyFileSync(src, path.join(DIST, asset));
-}
+  fs.copyFileSync(src, path.join(DIST, rel));
+};
+
+ASSETS.forEach(copy);
+ICON_SIZES.forEach(n => copy(`icons/icon-${n}.png`));
 
 const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-console.log(`Built TabJournal v${version} -> dist/ (${ASSETS.length} files)`);
+const fileCount = ASSETS.length + ICON_SIZES.length;
+console.log(`Built TabJournal v${version} -> dist/ (${fileCount} files)`);
 console.log('Load dist/ via chrome://extensions "Load unpacked", or zip it for the Web Store.');

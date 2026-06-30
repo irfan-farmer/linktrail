@@ -1,25 +1,19 @@
 const fs = require('fs');
 const path = require('path');
-const esprima = require('esprima');
+const { parse } = require('acorn');
 
 const ROOT = path.resolve(__dirname, '..');
-const files = [
-  'background.js',
-  'popup.js',
-  'storage.js',
-  'config.js',
-  'options.js'
-];
+const files = ['background.js', 'popup.js', 'storage.js', 'config.js', 'options.js'];
 
 let ok = true;
 
-for (const f of files) {
+for (const file of files) {
   try {
-    const code = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    esprima.parseModule(code, { tolerant: false });
-    console.log(`${f}: OK`);
+    const code = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    parse(code, { ecmaVersion: 'latest', sourceType: 'module' });
+    console.log(`${file}: OK`);
   } catch (e) {
-    console.error(`${f}: PARSE ERROR: ${e.message}`);
+    console.error(`${file}: PARSE ERROR: ${e.message}`);
     ok = false;
   }
 }

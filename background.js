@@ -19,12 +19,10 @@ async function snapshotTabs(reason = 'periodic') {
     for (const tab of tabs) {
       if (!windows[tab.windowId]) windows[tab.windowId] = [];
       windows[tab.windowId].push({
-        id: tab.id,
         index: tab.index,
         url: tab.url || null,
         title: tab.title || null,
-        pinned: tab.pinned,
-        active: tab.active
+        pinned: tab.pinned
       });
     }
 

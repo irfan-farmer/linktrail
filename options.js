@@ -34,7 +34,7 @@ async function init() {
   });
 
   document.getElementById('reset').addEventListener('click', async () => {
-    writeForm(await saveConfig(Object.assign({}, DEFAULT_CONFIG)));
+    writeForm(await saveConfig({ ...DEFAULT_CONFIG }));
     flash('Reset to defaults.');
   });
 }
