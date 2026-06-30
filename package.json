@@ -1,15 +1,16 @@
 {
   "name": "tab_journal",
   "version": "1.1.0",
-  "description": "Chrome extension that periodically snapshots open tabs into a searchable, exportable journal so links are never lost.",
+  "description": "Cross-browser extension that snapshots open tabs into a searchable, exportable, fully-local journal so links are never lost.",
+  "type": "module",
   "main": "background.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "test": "node tests/parse_js.js",
-    "icons": "node scripts/make-icons.js",
-    "build": "node scripts/build.js"
+    "test": "node tests/parse_js.cjs && node --test tests/privacy.test.js",
+    "icons": "node scripts/make-icons.cjs",
+    "build": "node scripts/build.cjs"
   },
   "keywords": [
     "chrome-extension",
