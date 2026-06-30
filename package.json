@@ -18,7 +18,7 @@
     "history",
     "productivity"
   ],
-  "author": "",
+  "author": "irfan-farmer",
   "license": "MIT",
   "devDependencies": {
     "acorn": "^8.17.0"
