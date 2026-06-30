@@ -41,6 +41,8 @@ same code runs across browsers. `npm run build` produces a folder per target:
 Chromium browsers are the verified path; the Firefox and Safari targets share the
 same code and should be smoke-tested before publishing to their stores.
 
+To publish to the web stores and ship updates, see [PUBLISHING.md](PUBLISHING.md).
+
 ## Files
 
 - `manifest.json` — base (Chromium) MV3 manifest; the build derives other targets
