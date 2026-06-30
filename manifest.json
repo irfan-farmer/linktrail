@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "TabJournal",
+  "version": "1.1.0",
+  "description": "Safely journals Chrome tabs so links are never lost.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "alarms"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "minimum_chrome_version": "114"
+}

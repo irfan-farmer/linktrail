@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TabJournal Options</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 18px; }
+  .field { margin: 16px 0; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .hint { font-size: 12px; color: #666; margin-top: 2px; }
+  input[type="number"] { width: 120px; padding: 4px 6px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  button { padding: 8px 14px; font-size: 13px; cursor: pointer; margin-top: 8px; }
+  #status { font-size: 12px; color: #2a6; margin-left: 8px; }
+</style>
+</head>
+<body>
+  <h1>TabJournal Settings</h1>
+
+  <div class="field">
+    <label for="snapshotMinutes">Snapshot interval (minutes)</label>
+    <input id="snapshotMinutes" type="number" min="1" step="1">
+    <div class="hint">How often the periodic snapshot runs.</div>
+  </div>
+
+  <div class="field">
+    <label for="maxEntries">Max journal entries</label>
+    <input id="maxEntries" type="number" min="50" step="50">
+    <div class="hint">Oldest snapshots are trimmed once this cap is reached.</div>
+  </div>
+
+  <div class="field">
+    <label class="row"><input id="captureEvents" type="checkbox"> Capture tab events</label>
+    <div class="hint">Snapshot on tab create/remove/update (debounced).</div>
+  </div>
+
+  <div class="field">
+    <label for="eventDebounceMs">Event debounce (ms)</label>
+    <input id="eventDebounceMs" type="number" min="0" step="250">
+    <div class="hint">Bursts of tab events within this window collapse into one snapshot.</div>
+  </div>
+
+  <div class="row">
+    <button id="save">Save</button>
+    <button id="reset">Reset to defaults</button>
+    <span id="status"></span>
+  </div>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>
