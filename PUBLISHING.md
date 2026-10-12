@@ -49,13 +49,16 @@ users for ~$5). Add Firefox once you have a real add-on id, and Safari only on
 demand.
 
 ### Listing essentials (all stores)
-- Name, summary, and full description (reuse `README.md`).
-- At least one screenshot of the popup.
-- **Privacy disclosure:** declare **"does not collect user data."** It's true
-  (everything is local — see `PRIVACY.md`) and it's a real trust/ranking
-  advantage. Link `PRIVACY.md` as the privacy policy.
-- Justify each permission (`tabs`, `storage`, `alarms`) — `PRIVACY.md` has the
-  table ready to paste.
+Everything to paste into the store forms (description, permission
+justifications, privacy answers) is in [store/listing.md](store/listing.md),
+and the images are in [store/](store/).
+
+- **Privacy disclosure:** declare **Web history**. Chrome Web Store policy
+  requires disclosing data an extension handles *even when it is only stored
+  locally*, so "does not collect user data" would be inaccurate and risks
+  rejection. Link `PRIVACY.md` as the privacy policy.
+- **Contact email is public.** The address on your developer account is shown on
+  the listing. Use a dedicated address, not a personal or work one.
 
 ## 3. Shipping an update later
 

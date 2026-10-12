@@ -82,6 +82,17 @@ links you saw longest ago are removed first. Nothing is kept anywhere else.
 LinkTrail deliberately does **not** request host permissions
 (`<all_urls>`), so it cannot read or change page contents.
 
+## Chrome Web Store Limited Use
+
+LinkTrail's use of information received from Chrome APIs adheres to the
+[Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq),
+including the
+[Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use)
+requirements. Your web history is used only to provide LinkTrail's single
+purpose, a searchable record of links you've had open. It is never
+transferred, sold, used for advertising, used to determine creditworthiness,
+or read by any person.
+
 ## Contact
 
 LinkTrail is a local, open-source tool. Since no data leaves your machine,

@@ -36,12 +36,22 @@ function inRoundedSquare(x, y, n, r) {
   return Math.hypot(x - cx, y - cy) <= r;
 }
 
-function pixel(x, y, n) {
-  const r = 0.18 * n;
-  if (!inRoundedSquare(x + 0.5, y + 0.5, n, r)) return [0, 0, 0, 0];
+// Chrome Web Store guidance: the 128px icon is 96px of artwork with 16px of
+// transparent padding on each side. Smaller toolbar sizes stay full-bleed.
+const paddingFor = n => (n === 128 ? 16 : 0);
 
-  const u = (x + 0.5) / n;
-  const v = (y + 0.5) / n;
+function pixel(x, y, n) {
+  const pad = paddingFor(n);
+  const art = n - 2 * pad;
+  x -= pad;
+  y -= pad;
+  if (x < 0 || y < 0 || x >= art || y >= art) return [0, 0, 0, 0];
+
+  const r = 0.18 * art;
+  if (!inRoundedSquare(x + 0.5, y + 0.5, art, r)) return [0, 0, 0, 0];
+
+  const u = (x + 0.5) / art;
+  const v = (y + 0.5) / art;
 
   const spine = u > 0.16 && u < 0.27 && v > 0.18 && v < 0.82;
   const lineU = u > 0.34 && u < 0.82;
