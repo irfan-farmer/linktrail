@@ -1,102 +1,115 @@
 import { browser } from './browser.js';
-import { appendEntry, snapshotSignature } from './storage.js';
-import { loadConfig, CONFIG_KEY } from './config.js';
-import { sanitizeUrl, shouldCapture } from './privacy.js';
+import { CONFIG_KEY, loadConfig } from './config.js';
+import { LEGACY_KEY, LINKS_KEY, enqueue, readLinks, writeLinks } from './storage.js';
+import { migrateSnapshots, recordTabs, scrubLinks } from './journal.js';
 
 const ALARM_NAME = 'snapshot';
 
-function timestamp() {
-  return new Date().toISOString();
-}
+// Each task runs inside the write queue and reads config there, so it always
+// sees settings at least as fresh as any scrub queued before it. Failures are
+// already logged by the queue.
+const queued = task => enqueue(task).catch(() => {});
 
-// Signature of the last persisted snapshot, used to skip duplicate writes.
-let lastSignature = null;
-
-async function snapshotTabs(reason = 'periodic') {
-  try {
+/**
+ * Record the open tabs. A heartbeat always persists (it refreshes lastSeen);
+ * an activity-triggered snapshot persists only when a new link appeared or a
+ * title changed, so busy browsing doesn't cause needless writes.
+ */
+function snapshot({ heartbeat }) {
+  return queued(async () => {
     const config = await loadConfig();
-
-    // Master switch: when paused, TabJournal records nothing at all.
     if (!config.captureEnabled) return;
-
-    const tabs = await browser.tabs.query({});
-    const windows = {};
-
-    for (const tab of tabs) {
-      // Only journal real http/https pages, never excluded domains, never
-      // browser-internal/extension/file pages.
-      if (!shouldCapture(tab.url, config.excludedDomains)) continue;
-
-      if (!windows[tab.windowId]) windows[tab.windowId] = [];
-      windows[tab.windowId].push({
-        index: tab.index,
-        url: sanitizeUrl(tab.url, config.storeFullUrl),
-        title: tab.title || null,
-        pinned: tab.pinned
-      });
-    }
-
-    // Skip event-driven snapshots that didn't change the tab set; always keep
-    // periodic/lifecycle snapshots so the journal has regular heartbeats.
-    const signature = snapshotSignature(windows);
-    const isEventReason = reason.startsWith('tab-');
-    if (isEventReason && signature === lastSignature) return;
-    lastSignature = signature;
-
-    const entry = { ts: timestamp(), reason, windows };
-    await appendEntry(entry, config.maxEntries);
-  } catch (err) {
-    console.error('TabJournal snapshot error:', err);
-  }
+    const [links, tabs] = await Promise.all([readLinks(), browser.tabs.query({})]);
+    const changed = recordTabs(links, tabs, config, Date.now());
+    if (changed || heartbeat) await writeLinks(links, config.maxLinks);
+  });
 }
 
-// --- alarms -----------------------------------------------------
+/** Re-apply current privacy settings to everything already stored. */
+function scrub() {
+  return queued(async () => {
+    const config = await loadConfig();
+    const { links, changed } = scrubLinks(await readLinks(), config);
+    if (changed) await writeLinks(links, config.maxLinks);
+  });
+}
+
+/** One-time upgrade of the pre-1.2 snapshot journal into the link map. */
+function migrateLegacy() {
+  return queued(async () => {
+    const { [LEGACY_KEY]: legacy } = await browser.storage.local.get(LEGACY_KEY);
+    if (!legacy) return;
+    const config = await loadConfig();
+    const { links } = scrubLinks(migrateSnapshots(legacy, await readLinks()), config);
+    await writeLinks(links, config.maxLinks);
+    await browser.storage.local.remove(LEGACY_KEY);
+  });
+}
 
 async function ensureAlarm() {
   const { snapshotMinutes } = await loadConfig();
-  await browser.alarms.create(ALARM_NAME, { periodInMinutes: snapshotMinutes });
+  const existing = await browser.alarms.get(ALARM_NAME);
+  if (existing?.periodInMinutes !== snapshotMinutes) {
+    await browser.alarms.create(ALARM_NAME, { periodInMinutes: snapshotMinutes });
+  }
 }
+
+// --- lifecycle --------------------------------------------------
 
 browser.runtime.onInstalled.addListener(() => {
   ensureAlarm();
-  snapshotTabs('install');
+  migrateLegacy();
+  scrub();
+  snapshot({ heartbeat: true });
 });
 
 browser.runtime.onStartup.addListener(() => {
   ensureAlarm();
-  snapshotTabs('startup');
+  snapshot({ heartbeat: true });
 });
 
 browser.alarms.onAlarm.addListener(alarm => {
-  if (alarm.name === ALARM_NAME) snapshotTabs('alarm');
+  if (alarm.name === ALARM_NAME) snapshot({ heartbeat: true });
 });
 
-// Re-create the alarm whenever the interval changes in the options page.
+// Settings changed (options page or popup): apply the interval, and purge any
+// stored data the new privacy settings no longer allow.
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes[CONFIG_KEY]) ensureAlarm();
+  if (area !== 'local' || !changes[CONFIG_KEY]) return;
+  ensureAlarm();
+  scrub();
 });
 
-// --- event capture (debounced) ----------------------------------
+// --- tab activity (throttled) -------------------------------------
 
+// Throttle, not debounce: the first event schedules one snapshot and later
+// events ride along with it, so a page that updates constantly can't postpone
+// capture indefinitely.
 let eventTimer = null;
-let pendingReason = null;
 
-async function scheduleEventSnapshot(reason) {
-  const { captureEnabled, captureEvents, eventDebounceMs } = await loadConfig();
-  if (!captureEnabled || !captureEvents) return;
-
-  pendingReason = reason;
-  if (eventTimer) clearTimeout(eventTimer);
+async function onTabActivity() {
+  if (eventTimer) return;
+  const { captureEnabled, captureEvents, eventDelayMs } = await loadConfig();
+  if (!captureEnabled || !captureEvents || eventTimer) return;
   eventTimer = setTimeout(() => {
     eventTimer = null;
-    const r = pendingReason || reason;
-    pendingReason = null;
-    snapshotTabs(r);
-  }, eventDebounceMs);
+    snapshot({ heartbeat: false });
+  }, eventDelayMs);
 }
 
-browser.tabs.onCreated.addListener(() => scheduleEventSnapshot('tab-created'));
-browser.tabs.onRemoved.addListener(() => scheduleEventSnapshot('tab-removed'));
 browser.tabs.onUpdated.addListener((_, changeInfo) => {
-  if (changeInfo.url || changeInfo.title) scheduleEventSnapshot('tab-updated');
+  if (changeInfo.url || changeInfo.status === 'complete') onTabActivity();
+});
+
+// --- messages -----------------------------------------------------
+
+// The only command: delete everything. It goes through the same queue as all
+// writes, so it can't race a snapshot that's mid-flight.
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.id !== browser.runtime.id || message?.type !== 'clear') return false;
+  enqueue(() => browser.storage.local.remove([LINKS_KEY, LEGACY_KEY])).then(
+    () => sendResponse({ ok: true }),
+    err => sendResponse({ ok: false, error: String(err) })
+  );
+  return true; // keep the channel open for the async response
 });

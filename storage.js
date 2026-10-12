@@ -1,57 +1,35 @@
 import { browser } from './browser.js';
+import { evictOldest } from './journal.js';
 
-export const STORAGE_KEY = 'tab_journal';
+export const LINKS_KEY = 'tab_journal_links';
+export const LEGACY_KEY = 'tab_journal'; // pre-1.2 snapshot array, migrated on install/update
 
-export async function loadJournal() {
-  const result = await browser.storage.local.get(STORAGE_KEY);
-  return result[STORAGE_KEY] || [];
+export async function readLinks() {
+  const { [LINKS_KEY]: links } = await browser.storage.local.get(LINKS_KEY);
+  return links && typeof links === 'object' && !Array.isArray(links) ? links : {};
 }
 
-/** Delete the entire journal (user-initiated "clear all data"). */
-export async function clearJournal() {
-  await browser.storage.local.remove(STORAGE_KEY);
-}
-
-// All journal mutations funnel through this promise chain so concurrent tab
-// events can't read-modify-write over each other and silently drop entries.
-let writeChain = Promise.resolve();
-
-/**
- * Atomically append one entry to the journal, trim to `maxEntries`, and persist.
- * Returns a promise that resolves once this write (and everything queued before
- * it) has completed. Errors are caught so a single failed write can't break the
- * chain for subsequent appends.
- */
-export function appendEntry(entry, maxEntries) {
-  writeChain = writeChain.then(async () => {
-    const journal = await loadJournal();
-    journal.push(entry);
-    while (journal.length > maxEntries) journal.shift();
-    try {
-      await browser.storage.local.set({ [STORAGE_KEY]: journal });
-    } catch (err) {
-      // Most likely a quota error. Drop the oldest 10% and retry once so we
-      // degrade gracefully instead of losing the new entry entirely.
-      console.error('TabJournal save error, trimming and retrying:', err);
-      journal.splice(0, Math.ceil(journal.length * 0.1) || 1);
-      await browser.storage.local.set({ [STORAGE_KEY]: journal });
-    }
-  }).catch(err => {
-    console.error('TabJournal write error:', err);
-  });
-  return writeChain;
-}
-
-/**
- * Stable signature of a snapshot's tab state (ignores volatile fields), used to
- * skip writing snapshots identical to the previous one.
- */
-export function snapshotSignature(windows) {
-  const parts = [];
-  for (const id of Object.keys(windows).sort()) {
-    for (const t of windows[id]) {
-      parts.push(`${id}|${t.index}|${t.url || ''}|${t.pinned ? 1 : 0}`);
-    }
+/** Persist `links`, capped at `maxLinks` (least-recently-seen evicted first). */
+export async function writeLinks(links, maxLinks) {
+  evictOldest(links, maxLinks);
+  try {
+    await browser.storage.local.set({ [LINKS_KEY]: links });
+  } catch (err) {
+    // Almost certainly the storage quota: evict the oldest 10% and retry once.
+    console.warn('TabJournal: save failed, evicting oldest 10% and retrying:', err);
+    evictOldest(links, Math.floor(Object.keys(links).length * 0.9));
+    await browser.storage.local.set({ [LINKS_KEY]: links });
   }
-  return parts.join('\n');
+}
+
+// Every read-modify-write of the journal — snapshots, privacy scrubs, the
+// legacy migration, and user-initiated deletes — runs through this queue in the
+// background worker. No operation can interleave with another, so a delete can
+// never be undone by a write that read the journal just before it.
+let queue = Promise.resolve();
+
+export function enqueue(task) {
+  const run = queue.then(task);
+  queue = run.catch(err => console.error('TabJournal task failed:', err));
+  return run;
 }

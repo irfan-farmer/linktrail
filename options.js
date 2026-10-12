@@ -1,53 +1,54 @@
-import { DEFAULT_CONFIG, loadConfig, saveConfig } from './config.js';
-import { clearJournal } from './storage.js';
+import { DEFAULT_CONFIG, LIMITS, loadConfig, saveConfig } from './config.js';
+import { normalizeDomains } from './privacy.js';
+import { clearAllData, confirmTwice } from './ui.js';
 
-const status = document.getElementById('status');
+const $ = id => document.getElementById(id);
+const CHECKBOXES = ['captureEnabled', 'captureEvents', 'storeFullUrl', 'storeTitles'];
+const NUMBERS = ['snapshotMinutes', 'eventDelayMs', 'maxLinks'];
 
+let statusTimer = null;
+
+function flash(message, ms = 2000) {
+  $('status').textContent = message;
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { $('status').textContent = ''; }, ms);
+}
+
+// Raw form values; saveConfig() validates and clamps everything.
 function readForm() {
-  return {
-    captureEnabled: document.getElementById('captureEnabled').checked,
-    captureEvents: document.getElementById('captureEvents').checked,
-    snapshotMinutes: Number(document.getElementById('snapshotMinutes').value),
-    eventDebounceMs: Number(document.getElementById('eventDebounceMs').value),
-    maxEntries: Number(document.getElementById('maxEntries').value),
-    storeFullUrl: document.getElementById('storeFullUrl').checked,
-    excludedDomains: document.getElementById('excludedDomains').value
-      .split('\n').map(s => s.trim()).filter(Boolean)
-  };
+  const form = {};
+  for (const key of CHECKBOXES) form[key] = $(key).checked;
+  for (const key of NUMBERS) form[key] = $(key).value;
+  form.excludedDomains = $('excludedDomains').value.split('\n');
+  return form;
 }
 
 function writeForm(config) {
-  document.getElementById('captureEnabled').checked = config.captureEnabled;
-  document.getElementById('captureEvents').checked = config.captureEvents;
-  document.getElementById('snapshotMinutes').value = config.snapshotMinutes;
-  document.getElementById('eventDebounceMs').value = config.eventDebounceMs;
-  document.getElementById('maxEntries').value = config.maxEntries;
-  document.getElementById('storeFullUrl').checked = config.storeFullUrl;
-  document.getElementById('excludedDomains').value = config.excludedDomains.join('\n');
-}
-
-function flash(message) {
-  status.textContent = message;
-  setTimeout(() => { status.textContent = ''; }, 1500);
+  for (const key of CHECKBOXES) $(key).checked = config[key];
+  for (const key of NUMBERS) $(key).value = config[key];
+  $('excludedDomains').value = config.excludedDomains.join('\n');
 }
 
 async function init() {
+  for (const key of NUMBERS) [$(key).min, $(key).max] = LIMITS[key];
   writeForm(await loadConfig());
 
-  document.getElementById('save').addEventListener('click', async () => {
-    await saveConfig(readForm());
-    flash('Saved.');
+  $('save').addEventListener('click', async () => {
+    const form = readForm();
+    const { invalid } = normalizeDomains(form.excludedDomains);
+    writeForm(await saveConfig(form)); // show the values actually stored
+    if (invalid.length) flash(`Saved. Ignored invalid entries: ${invalid.join(', ')}`, 6000);
+    else flash('Saved.');
   });
 
-  document.getElementById('reset').addEventListener('click', async () => {
-    writeForm(await saveConfig({ ...DEFAULT_CONFIG }));
+  $('reset').addEventListener('click', async () => {
+    writeForm(await saveConfig(DEFAULT_CONFIG));
     flash('Reset to defaults.');
   });
 
-  document.getElementById('clear').addEventListener('click', async () => {
-    if (!confirm('Permanently delete all journal data from this device?')) return;
-    await clearJournal();
-    flash('All journal data deleted.');
+  confirmTwice($('clear'), async () => {
+    await clearAllData();
+    flash('All saved links deleted.');
   });
 }
 

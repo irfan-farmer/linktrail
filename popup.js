@@ -1,92 +1,88 @@
 import { browser } from './browser.js';
-import { loadJournal, clearJournal } from './storage.js';
 import { loadConfig, saveConfig } from './config.js';
+import { toSortedList } from './journal.js';
+import { isWebUrl } from './privacy.js';
+import { readLinks } from './storage.js';
+import { clearAllData, confirmTwice } from './ui.js';
 
 const info = document.getElementById('info');
 const search = document.getElementById('search');
 const results = document.getElementById('results');
-const pause = document.getElementById('pause');
+const recording = document.getElementById('recording');
 
-// Flatten every snapshot into a de-duplicated list of tabs, keyed by URL and
-// keeping the most recent title/timestamp for each — a searchable index of
-// every link you've had open.
-function buildIndex(journal) {
-  const byUrl = new Map();
-  for (const entry of journal) {
-    for (const windowId of Object.keys(entry.windows)) {
-      for (const tab of entry.windows[windowId]) {
-        if (!tab.url) continue;
-        const existing = byUrl.get(tab.url);
-        if (!existing || entry.ts > existing.ts) {
-          byUrl.set(tab.url, { url: tab.url, title: tab.title || tab.url, ts: entry.ts });
-        }
-      }
-    }
-  }
-  return [...byUrl.values()].sort((a, b) => (a.ts < b.ts ? 1 : -1));
+let index = [];
+
+function emptyRow(text) {
+  const li = document.createElement('li');
+  li.className = 'empty';
+  li.textContent = text;
+  return li;
 }
 
-function render(index, query) {
-  const q = query.trim().toLowerCase();
+function render() {
+  const q = search.value.trim().toLowerCase();
   const matches = q
-    ? index.filter(t => t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q))
+    ? index.filter(l => (l.title || '').toLowerCase().includes(q) || l.url.toLowerCase().includes(q))
     : index.slice(0, 50);
 
-  results.innerHTML = '';
+  results.replaceChildren();
   if (!matches.length) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = index.length ? 'No matching tabs.' : 'No snapshots yet.';
-    results.appendChild(li);
+    results.append(emptyRow(index.length ? 'No matching links.' : 'Nothing saved yet.'));
     return;
   }
 
-  for (const tab of matches.slice(0, 200)) {
+  for (const link of matches.slice(0, 200)) {
     const li = document.createElement('li');
-    li.title = `${tab.url}\nLast seen: ${tab.ts}`;
+    li.title = link.url;
 
     const title = document.createElement('div');
     title.className = 'title';
-    title.textContent = tab.title;
+    title.textContent = link.title || link.url;
 
     const url = document.createElement('div');
     url.className = 'url';
-    url.textContent = tab.url;
+    url.textContent = link.url;
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = `last seen ${new Date(tab.ts).toLocaleString()}`;
+    meta.textContent = `last seen ${new Date(link.lastSeen).toLocaleString()}`;
 
     li.append(title, url, meta);
-    li.addEventListener('click', () => browser.tabs.create({ url: tab.url }));
-    results.appendChild(li);
+    li.addEventListener('click', () => {
+      if (isWebUrl(link.url)) browser.tabs.create({ url: link.url });
+    });
+    results.append(li);
   }
+}
+
+function showInfo() {
+  info.textContent = index.length
+    ? `${index.length} saved links · last updated ${new Date(index[0].lastSeen).toLocaleString()}`
+    : 'Nothing saved yet.';
 }
 
 async function init() {
-  const [journal, config] = await Promise.all([loadJournal(), loadConfig()]);
-  const index = buildIndex(journal);
+  const [links, config] = await Promise.all([readLinks(), loadConfig()]);
+  index = toSortedList(links);
 
-  pause.checked = config.captureEnabled;
-  pause.addEventListener('change', () => saveConfig({ captureEnabled: pause.checked }));
+  recording.checked = config.captureEnabled;
+  recording.addEventListener('change', () => saveConfig({ captureEnabled: recording.checked }));
 
-  if (journal.length) {
-    const last = journal[journal.length - 1];
-    info.textContent =
-      `${journal.length} snapshots · ${index.length} unique links · last ${new Date(last.ts).toLocaleString()}`;
-  } else {
-    info.textContent = 'No snapshots yet.';
-  }
-
-  render(index, '');
-  search.addEventListener('input', () => render(index, search.value));
+  showInfo();
+  render();
+  search.addEventListener('input', render);
 }
 
-// Export runs in the popup (a normal DOM page) so URL.createObjectURL is
-// available — unlike the MV3 service worker, where it is not.
+// Export runs in the popup (a normal DOM page) because URL.createObjectURL is
+// not available in the MV3 service worker.
 document.getElementById('export').addEventListener('click', async () => {
-  const journal = await loadJournal();
-  const blob = new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' });
+  const data = toSortedList(await readLinks()).map(l => ({
+    url: l.url,
+    title: l.title,
+    firstSeen: new Date(l.firstSeen).toISOString(),
+    lastSeen: new Date(l.lastSeen).toISOString()
+  }));
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -99,10 +95,11 @@ document.getElementById('settings').addEventListener('click', () => {
   browser.runtime.openOptionsPage();
 });
 
-document.getElementById('clear').addEventListener('click', async () => {
-  if (!confirm('Delete the entire tab journal from this device? This cannot be undone.')) return;
-  await clearJournal();
-  window.close();
+confirmTwice(document.getElementById('clear'), async () => {
+  await clearAllData();
+  index = [];
+  showInfo();
+  render();
 });
 
 init();

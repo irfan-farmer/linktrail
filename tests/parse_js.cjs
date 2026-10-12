@@ -7,7 +7,9 @@ const files = [
   'browser.js',
   'privacy.js',
   'config.js',
+  'journal.js',
   'storage.js',
+  'ui.js',
   'background.js',
   'popup.js',
   'options.js'

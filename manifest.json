@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "TabJournal",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Privately journals your open tabs so links are never lost. 100% local — nothing ever leaves your device.",
   "permissions": [
     "tabs",
     "storage",
     "alarms"
   ],
+  "incognito": "not_allowed",
   "background": {
     "service_worker": "background.js",
     "type": "module"
