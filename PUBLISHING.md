@@ -6,9 +6,13 @@ per-browser: `npm run build` produces `dist/chrome` and `dist/firefox`.
 ## 0. Before every release
 
 ```bash
-npm test          # parse check + redaction tests must pass
-npm run build     # regenerates dist/chrome and dist/firefox
+npm test          # lint + unit tests
+npm run test:e2e  # builds, then runs the end-to-end suite in a real browser
 ```
+
+CI runs both on every push; don't release from a red build. Add the release
+to [CHANGELOG.md](CHANGELOG.md). If the popup or options UI changed, refresh
+the store screenshots in `store/` so the listing matches the extension.
 
 Bump the version in **both** files (store uploads are rejected unless the
 version is strictly higher than the live one):

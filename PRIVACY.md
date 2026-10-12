@@ -56,6 +56,8 @@ nowhere else. LinkTrail does **not**:
 ## What you control
 
 - **Pause** recording instantly with the "Recording" toggle in the popup.
+  Pages you open while paused are never saved, including after you resume:
+  tabs open at that moment are skipped until you navigate in them.
 - **Exclude sites.** Paste a domain or any address from the site. Links already
   saved from those sites are **deleted**, not just hidden.
 - **Full addresses** are opt-in. Turning them back off strips query strings
@@ -64,7 +66,8 @@ nowhere else. LinkTrail does **not**:
 - **Export** everything as JSON whenever you like.
 - **Delete everything** permanently from the popup or settings. The delete runs
   in the same queue as every save, so a save that's already in progress cannot
-  bring deleted data back.
+  bring deleted data back, and tabs you still have open are not saved again
+  unless you navigate to a new page in them.
 
 ## Retention
 
