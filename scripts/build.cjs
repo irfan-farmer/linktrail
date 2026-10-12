@@ -49,10 +49,18 @@ const targets = {
   firefox: firefoxManifest(baseManifest)
 };
 
+// Files are updated in place rather than deleting the folder first: the folder
+// may be loaded as an unpacked extension, and briefly removing it can make the
+// browser disable the extension. Files no longer part of the build are removed.
 function buildTarget(name, manifest) {
   const out = path.join(DIST, name);
-  fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
+  const expected = new Set(['manifest.json', ...ASSETS, ...ICON_SIZES.map(n => `icons/icon-${n}.png`)]);
+  for (const entry of fs.readdirSync(out, { recursive: true })) {
+    const rel = entry.split(path.sep).join('/');
+    const full = path.join(out, entry);
+    if (fs.statSync(full).isFile() && !expected.has(rel)) fs.rmSync(full);
+  }
 
   const copy = rel => {
     const src = path.join(ROOT, rel);
@@ -70,7 +78,8 @@ function buildTarget(name, manifest) {
   console.log(`  dist/${name}/  (${ASSETS.length + ICON_SIZES.length + 1} files)`);
 }
 
-fs.rmSync(DIST, { recursive: true, force: true });
 console.log(`Building LinkTrail v${baseManifest.version}:`);
 for (const [name, manifest] of Object.entries(targets)) buildTarget(name, manifest);
 console.log('Load a folder via the browser\'s "Load unpacked"/"Load temporary add-on", or zip it for the store.');
+console.log('Already loaded as an unpacked extension? Click its Reload button in chrome://extensions;');
+console.log('browsers do not pick up rebuilt files on their own.');

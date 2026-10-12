@@ -3,8 +3,7 @@
 //
 // Saved links are a map of url -> { title, firstSeen, lastSeen } (epoch ms): one
 // record per unique link, rather than repeated full snapshots of every tab.
-// Unchanged tabs cost nothing extra, so history spans months instead of days
-// and the stored data stays small enough to load instantly.
+// Unchanged tabs cost nothing extra, so history spans months instead of days.
 
 import { cleanTitle, sanitizeUrl, shouldCapture } from './privacy.js';
 
@@ -19,42 +18,95 @@ function merge(a, b) {
 }
 
 /**
- * Record the given browser tabs into `links` (mutated in place). Private/
- * incognito tabs, excluded domains, and non-web pages are never recorded.
- * Returns true if a new link appeared or a stored title changed.
+ * Decide which open tabs a snapshot may record, and the next snapshot state.
+ *
+ * - While paused, nothing is recorded.
+ * - The first snapshot after resuming records nothing and marks every open tab
+ *   as suppressed, so pages opened during the pause are never saved.
+ * - A suppressed tab (also set by "Delete all") is skipped until its address
+ *   changes, i.e. until the user navigates; suppressions for tabs that closed
+ *   or navigated are forgotten.
+ *
+ * `state` is { wasEnabled, suppressed: { [tabId]: url } }.
  */
-export function recordTabs(links, tabs, config, now) {
-  let changed = false;
-  for (const tab of tabs) {
-    if (tab.incognito) continue;
-    if (!shouldCapture(tab.url, config.excludedDomains)) continue;
-    const url = sanitizeUrl(tab.url, config.storeFullUrl);
-    if (!url) continue;
+export function planSnapshot(tabs, state, captureEnabled) {
+  const suppressed = state?.suppressed && typeof state.suppressed === 'object' ? state.suppressed : {};
+  if (!captureEnabled) return { tabs: [], state: { wasEnabled: false, suppressed } };
+  if (state?.wasEnabled === false) return { tabs: [], state: { wasEnabled: true, suppressed: suppressAll(tabs) } };
 
-    const title = cleanTitle(tab.title, config.storeTitles);
-    const link = links[url];
-    if (!link) {
-      links[url] = { title, firstSeen: now, lastSeen: now };
-      changed = true;
-    } else {
-      link.lastSeen = now;
-      if (title && title !== link.title) {
-        link.title = title;
-        changed = true;
-      }
-    }
+  const record = [];
+  const kept = {};
+  for (const tab of tabs) {
+    if (Object.hasOwn(suppressed, tab.id) && suppressed[tab.id] === tab.url) kept[tab.id] = tab.url;
+    else record.push(tab);
   }
-  return changed;
+  return { tabs: record, state: { wasEnabled: true, suppressed: kept } };
 }
 
-/** Drop the least-recently-seen links beyond `max`. Returns how many were removed. */
-export function evictOldest(links, max) {
+/** Suppress every given tab at its current address. */
+export function suppressAll(tabs) {
+  return Object.fromEntries(tabs.map(tab => [tab.id, tab.url]));
+}
+
+/**
+ * After a browser restart tabs get new ids: carry suppressions over to the
+ * restored tabs that are still at a suppressed address.
+ */
+export function remapSuppressed(state, tabs) {
+  const urls = new Set(Object.values(state?.suppressed ?? {}));
+  const suppressed = {};
+  for (const tab of tabs) if (urls.has(tab.url)) suppressed[tab.id] = tab.url;
+  return { ...state, suppressed };
+}
+
+/**
+ * The pages worth recording among `tabs`, as url -> title, after the privacy
+ * rules: private/incognito tabs, excluded domains, and non-web pages are
+ * dropped; addresses are redacted; titles are cleaned (or null when off).
+ */
+export function capture(tabs, config) {
+  const pages = new Map();
+  for (const tab of tabs) {
+    if (tab.incognito || !shouldCapture(tab.url, config.excludedDomains)) continue;
+    const url = sanitizeUrl(tab.url, config.storeFullUrl);
+    if (!url) continue;
+    const title = cleanTitle(tab.title, config.storeTitles);
+    if (!pages.has(url) || title) pages.set(url, title ?? pages.get(url) ?? null);
+  }
+  return pages;
+}
+
+/**
+ * Merge captured pages (url -> title) into their existing records. Returns the
+ * records to write, how many links are new, and whether anything changed
+ * besides lastSeen (a new link or a new title).
+ */
+export function recordPages(existing, pages, now, { storeTitles = true } = {}) {
+  const records = {};
+  let added = 0;
+  let changed = false;
+  for (const [url, title] of pages) {
+    const old = existing[url];
+    if (!old) {
+      records[url] = { title, firstSeen: now, lastSeen: now };
+      added++;
+      changed = true;
+      continue;
+    }
+    const nextTitle = storeTitles ? title || old.title || null : null;
+    if (nextTitle !== old.title) changed = true;
+    records[url] = { title: nextTitle, firstSeen: old.firstSeen, lastSeen: Math.max(old.lastSeen, now) };
+  }
+  return { records, added, changed };
+}
+
+/** The least-recently-seen urls beyond `max`, i.e. the ones to evict. */
+export function oldestBeyond(links, max) {
   const urls = Object.keys(links);
-  const excess = urls.length - max;
-  if (excess <= 0) return 0;
+  const excess = urls.length - Math.max(0, max);
+  if (excess <= 0) return [];
   urls.sort((a, b) => links[a].lastSeen - links[b].lastSeen);
-  for (const url of urls.slice(0, excess)) delete links[url];
-  return excess;
+  return urls.slice(0, excess);
 }
 
 /**

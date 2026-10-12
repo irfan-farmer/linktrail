@@ -1,14 +1,24 @@
 import { browser } from './browser.js';
 import { CONFIG_KEY, loadConfig, normalizeConfig } from './config.js';
-import { LEGACY_KEYS, LINKS_KEY, enqueue, readLinks, writeLinks } from './storage.js';
-import { mergeLinks, migrateSnapshots, recordTabs, scrubLinks } from './links.js';
+import {
+  capture, mergeLinks, migrateSnapshots, planSnapshot, recordPages,
+  remapSuppressed, scrubLinks, suppressAll
+} from './links.js';
+import {
+  LEGACY_KEYS, clearLinks, enqueue, readAllLinks, readLinks, readState,
+  replaceLinks, saveLinks, writeState
+} from './storage.js';
 
 const ALARM_NAME = 'snapshot';
 
-// Each task runs inside the write queue and reads config there, so it always
-// sees settings at least as fresh as any scrub queued before it. Failures are
+// Every task runs inside the write queue and reads config there, so it always
+// sees settings at least as fresh as any task queued before it. Failures are
 // already logged by the queue.
 const queued = task => enqueue(task).catch(() => {});
+
+async function updateState(next, previous) {
+  if (JSON.stringify(next) !== JSON.stringify(previous)) await writeState(next);
+}
 
 /**
  * Record the open tabs. A heartbeat always persists (it refreshes lastSeen);
@@ -17,11 +27,15 @@ const queued = task => enqueue(task).catch(() => {});
  */
 function snapshot({ heartbeat }) {
   return queued(async () => {
-    const config = await loadConfig();
-    if (!config.captureEnabled) return;
-    const [links, tabs] = await Promise.all([readLinks(), browser.tabs.query({})]);
-    const changed = recordTabs(links, tabs, config, Date.now());
-    if (changed || heartbeat) await writeLinks(links, config.maxLinks);
+    const [config, state, tabs] = await Promise.all([loadConfig(), readState(), browser.tabs.query({})]);
+    const plan = planSnapshot(tabs, state, config.captureEnabled);
+    await updateState(plan.state, state);
+
+    const pages = capture(plan.tabs, config);
+    if (!pages.size) return;
+    const existing = await readLinks([...pages.keys()]);
+    const { records, added, changed } = recordPages(existing, pages, Date.now(), config);
+    if (changed || heartbeat) await saveLinks(records, added, config.maxLinks);
   });
 }
 
@@ -29,16 +43,16 @@ function snapshot({ heartbeat }) {
 function scrub() {
   return queued(async () => {
     const config = await loadConfig();
-    const { links, changed } = scrubLinks(await readLinks(), config);
-    if (changed) await writeLinks(links, config.maxLinks);
+    const { links, changed } = scrubLinks(await readAllLinks(), config);
+    if (changed) await replaceLinks(links, config.maxLinks);
   });
 }
 
 /**
- * One-time upgrade of data saved under the old TabJournal keys: settings are
- * carried over first (so exclusions apply to the migrated links), then the 1.2
- * link map and the 1.0–1.1 snapshot history are merged in and redacted with the
- * current privacy settings. The old keys are removed afterwards.
+ * One-time upgrade of data saved by older versions: settings are carried over
+ * first (so exclusions apply to the migrated links), then every older link
+ * format is merged in and redacted with the current privacy settings, and the
+ * old keys are removed.
  */
 function migrateLegacy() {
   return queued(async () => {
@@ -54,45 +68,79 @@ function migrateLegacy() {
     }
 
     const config = await loadConfig();
-    let links = mergeLinks(await readLinks(), old[LEGACY_KEYS.links]);
-    links = migrateSnapshots(old[LEGACY_KEYS.snapshots], links);
-    await writeLinks(scrubLinks(links, config).links, config.maxLinks);
+    let merged = mergeLinks(await readAllLinks(), old[LEGACY_KEYS.linkMap]);
+    merged = mergeLinks(merged, old[LEGACY_KEYS.links]);
+    merged = migrateSnapshots(old[LEGACY_KEYS.snapshots], merged);
+    await replaceLinks(scrubLinks(merged, config).links, config.maxLinks);
     await browser.storage.local.remove(legacyKeys);
   });
 }
 
+/** Delete every saved link. Pages still open are not re-saved until visited again. */
+function clearAll() {
+  return enqueue(async () => {
+    const [state, tabs] = await Promise.all([readState(), browser.tabs.query({})]);
+    await writeState({ ...state, suppressed: suppressAll(tabs) });
+    await clearLinks();
+  });
+}
+
+/** Tab ids change across browser restarts; carry suppressions over. */
+function remapAfterRestart() {
+  return queued(async () => {
+    const [state, tabs] = await Promise.all([readState(), browser.tabs.query({})]);
+    await updateState(remapSuppressed(state, tabs), state);
+  });
+}
+
+/** Create the periodic alarm if it is missing or has the wrong interval. */
 async function ensureAlarm() {
-  const { snapshotMinutes } = await loadConfig();
-  const existing = await browser.alarms.get(ALARM_NAME);
-  if (existing?.periodInMinutes !== snapshotMinutes) {
-    await browser.alarms.create(ALARM_NAME, { periodInMinutes: snapshotMinutes });
+  try {
+    const { snapshotMinutes } = await loadConfig();
+    const existing = await browser.alarms.get(ALARM_NAME);
+    if (existing?.periodInMinutes !== snapshotMinutes) {
+      await browser.alarms.create(ALARM_NAME, { periodInMinutes: snapshotMinutes });
+    }
+  } catch (err) {
+    console.error('LinkTrail: could not schedule snapshots:', err);
   }
 }
 
 // --- lifecycle --------------------------------------------------
 
+// The worker starts on demand and is stopped when idle; re-check the alarm on
+// every start so a lost or replaced alarm can never silently stop recording.
+ensureAlarm();
+
 browser.runtime.onInstalled.addListener(() => {
-  ensureAlarm();
   migrateLegacy();
   scrub();
   snapshot({ heartbeat: true });
 });
 
 browser.runtime.onStartup.addListener(() => {
-  ensureAlarm();
+  remapAfterRestart();
   snapshot({ heartbeat: true });
 });
 
 browser.alarms.onAlarm.addListener(alarm => {
-  if (alarm.name === ALARM_NAME) snapshot({ heartbeat: true });
+  if (alarm.name !== ALARM_NAME) return;
+  snapshot({ heartbeat: true });
+  ensureAlarm(); // re-arm if this was a one-shot replacement
 });
 
-// Settings changed (options page or popup): apply the interval, and purge any
-// stored data the new privacy settings no longer allow.
+// Settings changed (options page or popup): apply the interval, purge stored
+// data the new privacy settings no longer allow, and take a snapshot so a
+// resume is handled (open tabs suppressed) before anything else is recorded.
+const PRIVACY_FIELDS = ['storeFullUrl', 'storeTitles', 'excludedDomains'];
+
 browser.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes[CONFIG_KEY]) return;
+  const before = normalizeConfig(changes[CONFIG_KEY].oldValue);
+  const after = normalizeConfig(changes[CONFIG_KEY].newValue);
   ensureAlarm();
-  scrub();
+  if (PRIVACY_FIELDS.some(f => JSON.stringify(before[f]) !== JSON.stringify(after[f]))) scrub();
+  if (before.captureEnabled !== after.captureEnabled) snapshot({ heartbeat: false });
 });
 
 // --- tab activity (throttled) -------------------------------------
@@ -122,7 +170,7 @@ browser.tabs.onUpdated.addListener((_, changeInfo) => {
 // writes, so it can't race a snapshot that's mid-flight.
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== browser.runtime.id || message?.type !== 'clear') return false;
-  enqueue(() => browser.storage.local.remove([LINKS_KEY, LEGACY_KEYS.links, LEGACY_KEYS.snapshots])).then(
+  clearAll().then(
     () => sendResponse({ ok: true }),
     err => sendResponse({ ok: false, error: String(err) })
   );
