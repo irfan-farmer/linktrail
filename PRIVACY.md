@@ -1,58 +1,88 @@
 # TabJournal — Privacy Policy
 
 **Short version: everything stays on your device. TabJournal has no servers, no
-accounts, and makes no network requests. We literally cannot see your data.**
+accounts, and makes no network requests. We cannot see your data.**
 
-This is the honest, complete description of what TabJournal does with your data.
-The source code is small and open — you can verify every claim below yourself.
+This is a complete, plain description of what TabJournal does with your data,
+including its limits. The source is small and open, so you can check every
+claim below yourself.
 
 ## What it records
 
-While journaling is active, TabJournal periodically (and when tabs change) saves
-a snapshot of your open tabs:
+While recording is on, TabJournal keeps **one record per link** you've had open:
 
-- the page **title**
-- the page **address (URL)** — by default with the query string and fragment
-  **removed**, so secrets like session tokens or password-reset links are not kept
-- the tab's position and pinned state
-- a **timestamp**
+- the page **address (URL)**. By default the query string and fragment (the
+  parts after `?` and `#`) are **removed**, and any embedded username/password
+  is always removed.
+- the page **title**, unless you turn titles off
+- **when you first and last saw** that link
 
-It records **only** `http://` and `https://` pages. It never records
-browser-internal pages, extension pages, `file://` pages, or anything from a
-domain you add to the exclude list.
+It checks your open tabs every few minutes and shortly after a tab navigates.
+
+### What it never records
+
+- **Private / incognito windows.** The extension is declared
+  `"incognito": "not_allowed"`, so the browser never runs it there. As a second
+  safeguard, the code also skips any tab marked private.
+- Browser-internal pages, extension pages, and `file://` pages. Only
+  `http://` and `https://` pages are recorded.
+- Any site on your **"Never record these sites"** list, including its subdomains.
+
+### What it can still reveal, honestly
+
+Removing query strings protects most secrets, but not all of them:
+
+- **Titles can be personal.** An inbox title often shows your email address,
+  and a document title can show its name. Turn off **Store page titles** if
+  that matters to you. Titles already saved are then erased.
+- **Some sites put secrets in the path itself**, such as reset tokens, magic
+  sign-in links, or "anyone with the link" document addresses. Add those sites
+  to the exclude list.
+- The saved data is **not encrypted**. It sits in your browser profile like
+  your normal history. Anyone with access to your computer account could read
+  it, just as they could read your browser history.
 
 ## Where it goes
 
-Into your browser's **local storage, on this device only**
-(`storage.local`). That's it. Specifically, TabJournal does **not**:
+Into your browser's **local storage on this device** (`storage.local`), and
+nowhere else. TabJournal does **not**:
 
-- send anything to any server (there is no backend, and no `fetch`/network code)
-- use any analytics, telemetry, or tracking
-- require an account or login
-- sync your journal anywhere
-- request access to page **content** — it has no host permissions and cannot
-  read what's on the pages you visit, only the tab's title and address
+- send anything to any server (there is no backend and no network code)
+- use analytics, telemetry, or tracking
+- require an account or sync your data
+- read page **content**. It has no host permissions, so it sees only each
+  tab's address and title, never what's on the page.
 
 ## What you control
 
-- **Pause** all recording instantly from the toolbar popup.
-- **Exclude domains** you never want journaled (subdomains included).
-- **Store full URLs** only if you explicitly opt in (off by default).
-- **Export** your entire journal as a JSON file whenever you like.
-- **Delete everything** permanently with one click, from the popup or options page.
+- **Pause** recording instantly with the "Recording" toggle in the popup.
+- **Exclude sites.** Paste a domain or any address from the site. Links already
+  saved from those sites are **deleted**, not just hidden.
+- **Full addresses** are opt-in. Turning them back off strips query strings
+  from links already saved.
+- **Titles** can be switched off. Doing so erases titles already saved.
+- **Export** everything as JSON whenever you like.
+- **Delete everything** permanently from the popup or settings. The delete runs
+  in the same queue as every save, so a save that's already in progress cannot
+  bring deleted data back.
+
+## Retention
+
+TabJournal keeps up to 5,000 links by default (adjustable). When it's full, the
+links you saw longest ago are removed first. Nothing is kept anywhere else.
 
 ## Permissions and why each is needed
 
 | Permission | Why |
 |---|---|
-| `tabs` | to read the title and URL of your open tabs (the core feature) |
+| `tabs` | to read the title and address of your open tabs (the core feature) |
 | `storage` | to save the journal locally on your device |
-| `alarms` | to take a snapshot on a periodic timer |
+| `alarms` | to check your open tabs on a timer |
 
 TabJournal deliberately does **not** request host permissions
-(`<all_urls>`), so it cannot read or modify page contents.
+(`<all_urls>`), so it cannot read or change page contents.
 
 ## Contact
 
-TabJournal is a local, open-source tool. Since no data ever leaves your machine,
-there is nothing for us to access, sell, or leak — by design.
+TabJournal is a local, open-source tool. Since no data leaves your machine,
+there is nothing for us to access, sell, or leak.
