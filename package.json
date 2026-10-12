@@ -1,6 +1,6 @@
 {
   "name": "linktrail",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Cross-browser extension that keeps a private, searchable history of every link you've had open. Everything stays on your device.",
   "type": "module",
   "main": "background.js",
@@ -8,7 +8,9 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node tests/parse_js.cjs && node --test tests/*.test.js",
+    "lint": "eslint .",
+    "test": "eslint . && node --test tests/*.test.js",
+    "test:e2e": "node scripts/build.cjs && node --test --test-concurrency=1 tests/e2e/*.e2e.js",
     "icons": "node scripts/make-icons.cjs",
     "build": "node scripts/build.cjs"
   },
@@ -21,6 +23,11 @@
   "author": "irfan-farmer",
   "license": "MIT",
   "devDependencies": {
-    "acorn": "^8.17.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
