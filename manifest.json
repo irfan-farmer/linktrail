@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "TabJournal",
-  "version": "1.2.0",
-  "description": "Privately journals your open tabs so links are never lost. 100% local — nothing ever leaves your device.",
+  "name": "LinkTrail",
+  "version": "1.3.0",
+  "description": "Find any link you've had open. Private by design: everything stays on your device.",
   "permissions": [
     "tabs",
     "storage",

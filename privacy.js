@@ -12,7 +12,7 @@ const MAX_URL_LENGTH = 2048;
 const MAX_TITLE_LENGTH = 300;
 const HOSTNAME = /^[a-z0-9.-]+$/;
 
-/** True for http/https URLs — the only kind TabJournal stores or opens. */
+/** True for http/https URLs — the only kind LinkTrail stores or opens. */
 export function isWebUrl(rawUrl) {
   try {
     return WEB_SCHEMES.has(new URL(rawUrl).protocol);
@@ -83,7 +83,7 @@ export function normalizeDomains(entries) {
 }
 
 /**
- * Whether a URL may be journaled: http/https only (never browser-internal,
+ * Whether a URL may be recorded: http/https only (never browser-internal,
  * extension, or file pages) and not on an excluded domain or its subdomains.
  */
 export function shouldCapture(rawUrl, excludedDomains = []) {

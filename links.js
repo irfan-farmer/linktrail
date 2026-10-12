@@ -1,7 +1,7 @@
-// The journal data model. Pure functions only — no browser APIs — so every rule
+// The saved-links data model. Pure functions only — no browser APIs — so every rule
 // here is unit-tested.
 //
-// The journal is a map of url -> { title, firstSeen, lastSeen } (epoch ms): one
+// Saved links are a map of url -> { title, firstSeen, lastSeen } (epoch ms): one
 // record per unique link, rather than repeated full snapshots of every tab.
 // Unchanged tabs cost nothing extra, so history spans months instead of days
 // and the stored data stays small enough to load instantly.
@@ -82,7 +82,7 @@ export function scrubLinks(links, config) {
 }
 
 /**
- * Fold a pre-1.2 snapshot journal (array of { ts, windows }) into a link map.
+ * Fold a pre-1.2 snapshot history (array of { ts, windows }) into a link map.
  * The result still needs scrubLinks() to apply the current privacy settings.
  */
 export function migrateSnapshots(snapshots, links = {}) {
@@ -96,6 +96,20 @@ export function migrateSnapshots(snapshots, links = {}) {
         links[tab.url] = merge(links[tab.url], { title, firstSeen: ts, lastSeen: ts });
       }
     }
+  }
+  return links;
+}
+
+/**
+ * Merge a stored link map (e.g. one saved under an older storage key) into
+ * `links`, skipping malformed records. The result still needs scrubLinks().
+ */
+export function mergeLinks(links, source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return links;
+  for (const [url, link] of Object.entries(source)) {
+    if (!Number.isFinite(link?.firstSeen) || !Number.isFinite(link?.lastSeen)) continue;
+    const title = typeof link.title === 'string' ? link.title : null;
+    links[url] = merge(links[url], { title, firstSeen: link.firstSeen, lastSeen: link.lastSeen });
   }
   return links;
 }

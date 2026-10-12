@@ -9,7 +9,7 @@
 import { browser } from './browser.js';
 import { normalizeDomains } from './privacy.js';
 
-export const CONFIG_KEY = 'tab_journal_config';
+export const CONFIG_KEY = 'linktrail_config';
 
 // [min, max] for numeric settings.
 export const LIMITS = Object.freeze({
@@ -31,7 +31,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   // privacy
   storeFullUrl: false,   // false = keep origin+path only (strip query/fragment)
   storeTitles: true,     // false = never store page titles
-  excludedDomains: []    // hosts never journaled (subdomains included)
+  excludedDomains: []    // hosts never recorded (subdomains included)
 });
 
 function clampInt(value, [min, max], fallback) {

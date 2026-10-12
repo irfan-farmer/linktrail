@@ -1,7 +1,7 @@
 {
-  "name": "tab_journal",
-  "version": "1.2.0",
-  "description": "Cross-browser extension that snapshots open tabs into a searchable, exportable, fully-local journal so links are never lost.",
+  "name": "linktrail",
+  "version": "1.3.0",
+  "description": "Cross-browser extension that keeps a private, searchable history of every link you've had open. Everything stays on your device.",
   "type": "module",
   "main": "background.js",
   "directories": {

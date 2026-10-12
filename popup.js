@@ -1,6 +1,6 @@
 import { browser } from './browser.js';
 import { loadConfig, saveConfig } from './config.js';
-import { toSortedList } from './journal.js';
+import { toSortedList } from './links.js';
 import { isWebUrl } from './privacy.js';
 import { readLinks } from './storage.js';
 import { clearAllData, confirmTwice } from './ui.js';
@@ -86,7 +86,7 @@ document.getElementById('export').addEventListener('click', async () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tabjournal-${Date.now()}.json`;
+  a.download = `linktrail-${Date.now()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });

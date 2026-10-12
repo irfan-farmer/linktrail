@@ -8,7 +8,7 @@ test('missing or non-object input yields the defaults', () => {
   }
 });
 
-test('blank numeric fields fall back to defaults instead of 0 (regression: wiped journal)', () => {
+test('blank numeric fields fall back to defaults instead of 0 (regression: wiped saved links)', () => {
   const config = normalizeConfig({ maxLinks: '', snapshotMinutes: '', eventDelayMs: '' });
   assert.equal(config.maxLinks, DEFAULT_CONFIG.maxLinks);
   assert.equal(config.snapshotMinutes, DEFAULT_CONFIG.snapshotMinutes);

@@ -1,7 +1,7 @@
 import { browser } from './browser.js';
 
 /**
- * Delete all journal data. The background worker performs the delete inside
+ * Delete all saved links. The background worker performs the delete inside
  * its write queue so it can't race an in-flight snapshot.
  */
 export async function clearAllData() {
@@ -35,7 +35,7 @@ export function confirmTwice(button, action) {
       await action();
       button.textContent = label;
     } catch (err) {
-      console.error('TabJournal:', err);
+      console.error('LinkTrail:', err);
       button.textContent = 'Failed, try again';
     } finally {
       button.disabled = false;

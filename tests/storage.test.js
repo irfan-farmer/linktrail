@@ -55,7 +55,7 @@ test('a delete queued behind an in-flight write is not undone by it (regression)
   assert.deepEqual(await readLinks(), {}, 'deleted data must stay deleted');
 });
 
-test('writes queued after a delete start from an empty journal', async () => {
+test('writes queued after a delete start from empty storage', async () => {
   reset();
   await writeLinks({ 'https://old.example.com/': link(1) }, 1000);
   await Promise.all([clearAll(), addLink('https://new.example.com/')]);
@@ -75,7 +75,7 @@ test('a failing task does not break the queue', async () => {
   assert.deepEqual(Object.keys(await readLinks()), ['https://after.example.com/']);
 });
 
-test('writeLinks caps the journal at maxLinks, evicting the oldest', async () => {
+test('writeLinks caps saved links at maxLinks, evicting the oldest', async () => {
   reset();
   const links = {};
   for (let i = 0; i < 10; i++) links[`https://s${i}.example.com/`] = link(i);

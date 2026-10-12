@@ -1,6 +1,6 @@
-# Publishing TabJournal
+# Publishing LinkTrail
 
-How to ship TabJournal to users and push updates. The build is already
+How to ship LinkTrail to users and push updates. The build is already
 per-browser: `npm run build` produces `dist/chrome` and `dist/firefox`.
 
 ## 0. Before every release
@@ -26,22 +26,22 @@ Stores want a zip whose **`manifest.json` sits at the root** (zip the folder's
 
 - **Windows (PowerShell):**
   ```powershell
-  Compress-Archive -Path dist/chrome/* -DestinationPath tabjournal-chrome.zip -Force
-  Compress-Archive -Path dist/firefox/* -DestinationPath tabjournal-firefox.zip -Force
+  Compress-Archive -Path dist/chrome/* -DestinationPath linktrail-chrome.zip -Force
+  Compress-Archive -Path dist/firefox/* -DestinationPath linktrail-firefox.zip -Force
   ```
 - **macOS / Linux:**
   ```bash
-  (cd dist/chrome && zip -r ../../tabjournal-chrome.zip .)
-  (cd dist/firefox && zip -r ../../tabjournal-firefox.zip .)
+  (cd dist/chrome && zip -r ../../linktrail-chrome.zip .)
+  (cd dist/firefox && zip -r ../../linktrail-firefox.zip .)
   ```
 
 ## 2. First-time submission per store
 
 | Store | Cost | What to upload | Notes |
 |---|---|---|---|
-| **Chrome Web Store** | $5 one-time dev fee | `tabjournal-chrome.zip` | Also installable by Edge/Brave/Opera/Vivaldi users. |
-| **Microsoft Edge Add-ons** | free | `tabjournal-chrome.zip` | Same package as Chrome. |
-| **Firefox Add-ons (AMO)** | free | `tabjournal-firefox.zip` | **Blocked until the gecko id is set — see TODO below.** |
+| **Chrome Web Store** | $5 one-time dev fee | `linktrail-chrome.zip` | Also installable by Edge/Brave/Opera/Vivaldi users. |
+| **Microsoft Edge Add-ons** | free | `linktrail-chrome.zip` | Same package as Chrome. |
+| **Firefox Add-ons (AMO)** | free | `linktrail-firefox.zip` | **Blocked until the gecko id is set — see TODO below.** |
 | **Safari** | $99/yr Apple Developer | convert first | `xcrun safari-web-extension-converter dist/chrome` (macOS + Xcode), then ship via App Store. Optional. |
 
 Recommended first launch: **Chrome Web Store + Edge Add-ons** (covers most
@@ -71,7 +71,7 @@ Users never reinstall.
 - **Adding a new permission disables the extension until the user re-approves
   it.** Minimize/batch permission additions.
 - **Migrations:** users keep their existing `storage.local` across updates. If a
-  release changes the journal's shape, read old data and upgrade it in code —
+  release changes the stored data's shape, read old data and upgrade it in code —
   never assume a clean slate.
 - Each store reviews independently, so live versions can briefly differ across
   stores. That's normal.
@@ -80,9 +80,9 @@ Users never reinstall.
 
 The Firefox build pins a placeholder add-on id in
 `scripts/build.cjs` → `browser_specific_settings.gecko.id` (currently
-`tabjournal@local`). **This id is permanent once published to AMO**, so set a
+`linktrail@local`). **This id is permanent once published to AMO**, so set a
 real one you own *before* the first Firefox submission, e.g.
-`tabjournal@yourdomain.com` (a domain-style string; you don't need a live
+`linktrail@yourdomain.com` (a domain-style string; you don't need a live
 website, but use something you control). Update it in `scripts/build.cjs`,
 rebuild, and verify `dist/firefox/manifest.json`.
 

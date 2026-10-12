@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeConfig } from '../config.js';
-import { evictOldest, migrateSnapshots, recordTabs, scrubLinks, toSortedList } from '../journal.js';
+import { evictOldest, mergeLinks, migrateSnapshots, recordTabs, scrubLinks, toSortedList } from '../links.js';
 
 const config = (overrides = {}) => normalizeConfig(overrides);
 const tab = (url, title = 'Title', extra = {}) => ({ url, title, incognito: false, ...extra });
@@ -113,6 +113,29 @@ test('legacy snapshots migrate into redacted link records', () => {
       lastSeen: Date.parse('2026-01-02T00:00:00.000Z')
     }
   });
+});
+
+test('mergeLinks folds an old link map in, keeping the widest time range and newest title', () => {
+  const links = { 'https://ex.com/': { title: 'Current', firstSeen: 50, lastSeen: 300 } };
+  mergeLinks(links, {
+    'https://ex.com/': { title: 'Old', firstSeen: 10, lastSeen: 100 },
+    'https://other.com/': { title: 'Other', firstSeen: 5, lastSeen: 6 }
+  });
+  assert.deepEqual(links, {
+    'https://ex.com/': { title: 'Current', firstSeen: 10, lastSeen: 300 },
+    'https://other.com/': { title: 'Other', firstSeen: 5, lastSeen: 6 }
+  });
+});
+
+test('mergeLinks skips malformed records and non-map input', () => {
+  const links = {};
+  mergeLinks(links, {
+    'https://bad1.com/': null,
+    'https://bad2.com/': { title: 'x', firstSeen: 'yesterday', lastSeen: 2 },
+    'https://good.com/': { title: 42, firstSeen: 1, lastSeen: 2 }
+  });
+  assert.deepEqual(links, { 'https://good.com/': { title: null, firstSeen: 1, lastSeen: 2 } });
+  for (const junk of [undefined, null, 'str', ['a']]) assert.deepEqual(mergeLinks({}, junk), {});
 });
 
 test('toSortedList orders by most recently seen', () => {

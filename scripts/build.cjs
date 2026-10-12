@@ -19,7 +19,7 @@ const ASSETS = [
   'browser.js',
   'privacy.js',
   'config.js',
-  'journal.js',
+  'links.js',
   'storage.js',
   'ui.js',
   'background.js',
@@ -39,7 +39,7 @@ function firefoxManifest(m) {
   delete fx.background.service_worker;
   fx.background = { scripts: ['background.js'], type: 'module' };
   fx.browser_specific_settings = {
-    gecko: { id: 'tabjournal@local', strict_min_version: '115.0' }
+    gecko: { id: 'linktrail@local', strict_min_version: '115.0' }
   };
   return fx;
 }
@@ -71,6 +71,6 @@ function buildTarget(name, manifest) {
 }
 
 fs.rmSync(DIST, { recursive: true, force: true });
-console.log(`Building TabJournal v${baseManifest.version}:`);
+console.log(`Building LinkTrail v${baseManifest.version}:`);
 for (const [name, manifest] of Object.entries(targets)) buildTarget(name, manifest);
 console.log('Load a folder via the browser\'s "Load unpacked"/"Load temporary add-on", or zip it for the store.');

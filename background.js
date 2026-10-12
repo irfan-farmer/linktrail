@@ -1,7 +1,7 @@
 import { browser } from './browser.js';
-import { CONFIG_KEY, loadConfig } from './config.js';
-import { LEGACY_KEY, LINKS_KEY, enqueue, readLinks, writeLinks } from './storage.js';
-import { migrateSnapshots, recordTabs, scrubLinks } from './journal.js';
+import { CONFIG_KEY, loadConfig, normalizeConfig } from './config.js';
+import { LEGACY_KEYS, LINKS_KEY, enqueue, readLinks, writeLinks } from './storage.js';
+import { mergeLinks, migrateSnapshots, recordTabs, scrubLinks } from './links.js';
 
 const ALARM_NAME = 'snapshot';
 
@@ -34,15 +34,30 @@ function scrub() {
   });
 }
 
-/** One-time upgrade of the pre-1.2 snapshot journal into the link map. */
+/**
+ * One-time upgrade of data saved under the old TabJournal keys: settings are
+ * carried over first (so exclusions apply to the migrated links), then the 1.2
+ * link map and the 1.0–1.1 snapshot history are merged in and redacted with the
+ * current privacy settings. The old keys are removed afterwards.
+ */
 function migrateLegacy() {
   return queued(async () => {
-    const { [LEGACY_KEY]: legacy } = await browser.storage.local.get(LEGACY_KEY);
-    if (!legacy) return;
+    const legacyKeys = Object.values(LEGACY_KEYS);
+    const old = await browser.storage.local.get(legacyKeys);
+    if (!legacyKeys.some(key => key in old)) return;
+
+    if (old[LEGACY_KEYS.config]) {
+      const { [CONFIG_KEY]: current } = await browser.storage.local.get(CONFIG_KEY);
+      if (!current) {
+        await browser.storage.local.set({ [CONFIG_KEY]: normalizeConfig(old[LEGACY_KEYS.config]) });
+      }
+    }
+
     const config = await loadConfig();
-    const { links } = scrubLinks(migrateSnapshots(legacy, await readLinks()), config);
-    await writeLinks(links, config.maxLinks);
-    await browser.storage.local.remove(LEGACY_KEY);
+    let links = mergeLinks(await readLinks(), old[LEGACY_KEYS.links]);
+    links = migrateSnapshots(old[LEGACY_KEYS.snapshots], links);
+    await writeLinks(scrubLinks(links, config).links, config.maxLinks);
+    await browser.storage.local.remove(legacyKeys);
   });
 }
 
@@ -107,7 +122,7 @@ browser.tabs.onUpdated.addListener((_, changeInfo) => {
 // writes, so it can't race a snapshot that's mid-flight.
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== browser.runtime.id || message?.type !== 'clear') return false;
-  enqueue(() => browser.storage.local.remove([LINKS_KEY, LEGACY_KEY])).then(
+  enqueue(() => browser.storage.local.remove([LINKS_KEY, LEGACY_KEYS.links, LEGACY_KEYS.snapshots])).then(
     () => sendResponse({ ok: true }),
     err => sendResponse({ ok: false, error: String(err) })
   );

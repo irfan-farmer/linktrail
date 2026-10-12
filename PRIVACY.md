@@ -1,15 +1,15 @@
-# TabJournal — Privacy Policy
+# LinkTrail — Privacy Policy
 
-**Short version: everything stays on your device. TabJournal has no servers, no
+**Short version: everything stays on your device. LinkTrail has no servers, no
 accounts, and makes no network requests. We cannot see your data.**
 
-This is a complete, plain description of what TabJournal does with your data,
+This is a complete, plain description of what LinkTrail does with your data,
 including its limits. The source is small and open, so you can check every
 claim below yourself.
 
 ## What it records
 
-While recording is on, TabJournal keeps **one record per link** you've had open:
+While recording is on, LinkTrail keeps **one record per link** you've had open:
 
 - the page **address (URL)**. By default the query string and fragment (the
   parts after `?` and `#`) are **removed**, and any embedded username/password
@@ -45,7 +45,7 @@ Removing query strings protects most secrets, but not all of them:
 ## Where it goes
 
 Into your browser's **local storage on this device** (`storage.local`), and
-nowhere else. TabJournal does **not**:
+nowhere else. LinkTrail does **not**:
 
 - send anything to any server (there is no backend and no network code)
 - use analytics, telemetry, or tracking
@@ -68,7 +68,7 @@ nowhere else. TabJournal does **not**:
 
 ## Retention
 
-TabJournal keeps up to 5,000 links by default (adjustable). When it's full, the
+LinkTrail keeps up to 5,000 links by default (adjustable). When it's full, the
 links you saw longest ago are removed first. Nothing is kept anywhere else.
 
 ## Permissions and why each is needed
@@ -76,13 +76,13 @@ links you saw longest ago are removed first. Nothing is kept anywhere else.
 | Permission | Why |
 |---|---|
 | `tabs` | to read the title and address of your open tabs (the core feature) |
-| `storage` | to save the journal locally on your device |
+| `storage` | to save your links locally on your device |
 | `alarms` | to check your open tabs on a timer |
 
-TabJournal deliberately does **not** request host permissions
+LinkTrail deliberately does **not** request host permissions
 (`<all_urls>`), so it cannot read or change page contents.
 
 ## Contact
 
-TabJournal is a local, open-source tool. Since no data leaves your machine,
+LinkTrail is a local, open-source tool. Since no data leaves your machine,
 there is nothing for us to access, sell, or leak.

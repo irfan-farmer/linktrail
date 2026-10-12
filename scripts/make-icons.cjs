@@ -1,6 +1,6 @@
 // Generates the extension's PNG icons (no external deps — uses Node's zlib).
 // A teal rounded square with a white notebook spine and three entry lines,
-// evoking a journal. Run with `npm run icons`; output goes to icons/.
+// evoking a trail of saved entries. Run with `npm run icons`; output goes to icons/.
 
 const fs = require('fs');
 const path = require('path');
