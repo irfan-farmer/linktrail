@@ -3,11 +3,11 @@
 
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bucketOf } from '../../storage.js';
-import { Session, sleep, waitFor } from './harness.js';
+import { EXT_DIR, Session, sleep, waitFor } from './harness.js';
 
 const has = (links, fragment) => Object.keys(links).some(u => u.includes(fragment));
 const settle = () => sleep(2500); // > default event delay (2s)
@@ -241,11 +241,22 @@ describe('robustness', () => {
 });
 
 describe('upgrade', () => {
+  // An update is simulated the way the browser sees one: the same extension
+  // folder and profile, relaunched with a higher version. (chrome.runtime.reload()
+  // would be simpler, but Chrome for Testing unloads command-line extensions on
+  // reload instead of restarting them.)
+  const profileDir = mkdtempSync(join(tmpdir(), 'linktrail-upgrade-profile-'));
+  const extDir = mkdtempSync(join(tmpdir(), 'linktrail-upgrade-ext-'));
   let s;
-  before(async () => { s = await Session.start(); });
-  after(() => s?.close());
+  after(async () => {
+    await s?.close();
+    rmSync(profileDir, { recursive: true, force: true });
+    rmSync(extDir, { recursive: true, force: true });
+  });
 
   test('migrates TabJournal and LinkTrail 1.3 data on update and deletes the old keys', async () => {
+    cpSync(EXT_DIR, extDir, { recursive: true });
+    s = await Session.start({ extDir, profileDir });
     await s.setStorage({
       tab_journal_config: { excludedDomains: ['old-bank.test'] },
       tab_journal_links: { 'https://kept.test/a': { title: 'Kept', firstSeen: 1, lastSeen: 2 }, 'https://old-bank.test/x': { title: 'Bank', firstSeen: 1, lastSeen: 2 } },
@@ -253,9 +264,15 @@ describe('upgrade', () => {
       linktrail_links: { 'https://v13.test/page': { title: 'From 1.3', firstSeen: 5, lastSeen: 6 } }
     });
     await s.evalWorker('chrome.storage.local.remove("linktrail_config")');
-    await s.evalWorker('chrome.runtime.reload()').catch(() => {}); // fires onInstalled (update)
-    await sleep(1500);
-    s._worker = null;
+    await s.close();
+
+    const manifestPath = join(extDir, 'manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    manifest.version = manifest.version.replace(/d+$/, n => String(Number(n) + 1));
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+
+    s = await Session.start({ extDir, profileDir });
+    assert.equal(await s.evalWorker('chrome.runtime.getManifest().version'), manifest.version, 'running the updated version');
     const data = await waitFor(async () => { const d = await s.storage(); return !('tab_journal' in d) && !('linktrail_links' in d) && d; }, { timeout: 15000, message: 'migration' });
     const urls = Object.keys(await s.links());
     assert.ok(urls.includes('https://v13.test/page'), 'LinkTrail 1.3 single-key data migrated');
@@ -263,6 +280,7 @@ describe('upgrade', () => {
     assert.ok(urls.includes('https://legacy.test/p'), 'legacy URL migrated without its query string');
     assert.ok(!urls.some(u => u.includes('old-bank.test')), 'old exclusions applied');
     assert.ok(!['tab_journal', 'tab_journal_links', 'tab_journal_config', 'linktrail_links'].some(k => k in data), 'old keys removed');
+    assert.deepEqual((await s.storage()).linktrail_config?.excludedDomains, ['old-bank.test'], 'old settings carried over');
   });
 });
 
